@@ -10,6 +10,7 @@
 import os
 import socket
 import sys
+from base64 import b64encode
 from cgi import FieldStorage
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from posixpath import normpath
@@ -18,6 +19,8 @@ from urllib.parse import unquote
 
 
 # brat imports
+import config
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'server/src'))
 from server import serve
 
@@ -222,25 +225,49 @@ class BratHTTPRequestHandler(SimpleHTTPRequestHandler):
         # TODO: permissions for directory listings
         self.send_error(403)
 
+    def do_AUTHHEAD(self):
+        self.send_response(401)
+        self.send_header(
+            'WWW-Authenticate', 'Basic realm="Demo Realm"')
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+
+    def check_auth(self):
+        key = b64encode(bytes('%s:%s' % (config.ADMIN_USER, config.ADMIN_PASSWORD), 'utf-8')).decode('ascii')
+        if self.headers.get('Authorization') == 'Basic ' + key:
+            return True
+        else:
+            if self.headers.get('Authorization') is None:
+                self.do_AUTHHEAD()
+                self.wfile.write("Not authenticated".encode('utf8'))
+            else:
+                self.do_AUTHHEAD()
+                self.wfile.write(self.headers.get('Authorization'))
+                self.wfile.write("Not authenticated".encode('utf8'))
+
+        return False
+
     def do_POST(self):
         """Serve a POST request.
 
         Only implemented for brat server.
         """
 
-        if self.is_brat():
-            self.run_brat_direct()
-        else:
-            self.send_error(501, "Can only POST to brat")
+        if self.check_auth():
+            if self.is_brat():
+                self.run_brat_direct()
+            else:
+                self.send_error(501, "Can only POST to brat")
 
     def do_GET(self):
         """Serve a GET request."""
         if not self.allow_path():
             self.send_error(403)
-        elif self.is_brat():
-            self.run_brat_direct()
-        else:
-            SimpleHTTPRequestHandler.do_GET(self)
+        elif self.check_auth():
+            if self.is_brat():
+                self.run_brat_direct()
+            else:
+                SimpleHTTPRequestHandler.do_GET(self)
 
     def do_HEAD(self):
         """Serve a HEAD request."""
@@ -248,6 +275,9 @@ class BratHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.send_error(403)
         else:
             SimpleHTTPRequestHandler.do_HEAD(self)
+
+
+BratHTTPRequestHandler.extensions_map['.xhtml'] = 'application/xhtml+xml'
 
 
 class BratServer(ForkingMixIn, HTTPServer):

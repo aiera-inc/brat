@@ -1,0 +1,18 @@
+environment:
+  - ADMIN_EMAIL=jason@aiera.com
+  - ADMIN_USER=admin
+  - ADMIN_PASSWORD
+  - AIERA_RESOLVE_API=https://graphql-dev.aiera.com/api/internal/brat/resolve
+  - AIERA_API_KEY
+  - TZ
+services:
+  brat:
+    build: .
+    command: pipenv run python standalone.py
+    domain: brat.aiera.com
+    port: 8001
+    volumes:
+      - /var/lib/brat
+    health:
+      path: /index.xhtml
+    internal: false

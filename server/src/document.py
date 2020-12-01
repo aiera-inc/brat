@@ -19,6 +19,7 @@ from os import listdir
 from os.path import join as path_join
 from os.path import abspath, dirname, getmtime, isabs, isdir, normpath
 
+from aiera import aiera_resolve
 from config import BASE_DIR, DATA_DIR
 
 from annlog import annotation_logging_active
@@ -877,7 +878,14 @@ def _document_json_dict(document):
 
     # TODO: We don't check if the files exist, let's be more error friendly
     # Read in the textual data to make it ready to push
-    _enrich_json_with_text(j_dic, document + '.' + TEXT_FILE_SUFFIX)
+    try:
+        _enrich_json_with_text(j_dic, document + '.' + TEXT_FILE_SUFFIX)
+    except UnableToReadTextFile:
+        text = aiera_resolve(document)
+        if text:
+            _enrich_json_with_text(j_dic, document + '.' + TEXT_FILE_SUFFIX, text)
+        else:
+            raise
 
     with TextAnnotations(document) as ann_obj:
         # Note: At this stage the sentence offsets can conflict with the
